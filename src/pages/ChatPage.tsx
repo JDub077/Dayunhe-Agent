@@ -11,16 +11,15 @@ export default function ChatPage() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [characterName, setCharacterName] = useState('')
+  const [characterTitle, setCharacterTitle] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // 创建会话
   useEffect(() => {
     if (!characterId) return
     client.post('/sessions', { character_id: characterId, user_id: 'anonymous' })
       .then((res: any) => {
         const sid = res.data?.session_id
         setSessionId(sid)
-        // 拉取历史（新会话为空）
         return client.get(`/chat/history?session_id=${sid}&limit=50`)
       })
       .then((res: any) => {
@@ -28,15 +27,14 @@ export default function ChatPage() {
       })
       .catch(() => {})
 
-    // 获取角色名
     client.get(`/characters/${characterId}`)
       .then((res: any) => {
         setCharacterName(res.data?.name || '')
+        setCharacterTitle(res.data?.title || '')
       })
       .catch(() => {})
   }, [characterId])
 
-  // 自动滚动到底部
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages])
@@ -48,7 +46,6 @@ export default function ChatPage() {
     setInput('')
     setSending(true)
 
-    // 先本地追加用户消息
     const userMsg: ChatMessage = {
       message_id: `tmp-${Date.now()}`,
       role: 'user',
@@ -86,89 +83,134 @@ export default function ChatPage() {
     }
   }
 
+  const formatTime = (iso: string) => {
+    const d = new Date(iso)
+    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+  }
+
   return (
-    <div className="h-screen flex flex-col bg-paper">
+    <div className="h-screen flex flex-col paper-texture">
       {/* 顶部栏 */}
-      <div className="shrink-0 flex items-center gap-3 px-4 py-3 bg-white/80 backdrop-blur border-b border-stone-200">
-        <button
-          onClick={() => navigate('/')}
-          className="text-wood text-sm px-2 py-1 rounded active:bg-stone-100"
-        >
-          ← 返回
-        </button>
-        <div className="flex-1 text-center">
-          <h2 className="text-base font-bold text-ink">{characterName || ' loading...'}</h2>
-          <p className="text-[10px] text-gray-400">永乐十九年 · 徐州知府衙门</p>
+      <div className="shrink-0 bg-white/90 backdrop-blur border-b border-wood/10 px-4 py-3">
+        <div className="max-w-xl mx-auto flex items-center gap-3">
+          <button
+            onClick={() => navigate('/')}
+            className="w-9 h-9 flex items-center justify-center rounded-full bg-stone-100 text-wood hover:bg-stone-200 transition-colors text-sm"
+          >
+            ←
+          </button>
+
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-stone-100 to-stone-200 flex items-center justify-center border border-stone-200 shrink-0">
+            <span className="text-wood/80 font-serif text-lg">{characterName ? characterName[0] : '?'}</span>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-bold text-ink truncate" style={{ fontFamily: 'serif' }}>
+              {characterName || '...'}
+            </h2>
+            <p className="text-[11px] text-gray-400 truncate">
+              {characterTitle} · 永乐十九年 · 徐州知府衙门
+            </p>
+          </div>
+
+          {/* 状态指示 */}
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-jade animate-pulse" />
+            <span className="text-[10px] text-gray-400">在线</span>
+          </div>
         </div>
-        <div className="w-10" /> {/* 占位保持居中 */}
       </div>
 
       {/* 消息列表 */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto no-scrollbar px-4 py-4 space-y-4"
+        className="flex-1 overflow-y-auto no-scrollbar px-4 py-5 space-y-5"
       >
         {messages.length === 0 && (
-          <div className="text-center text-gray-400 text-sm mt-10">
-            <p>会话已开启</p>
-            <p className="mt-1">试着和 {characterName} 打个招呼吧</p>
+          <div className="text-center mt-16 animate-fade-in-up">
+            <div className="w-16 h-[1px] bg-wood/20 mx-auto mb-6" />
+            <p className="text-sm text-gray-400 tracking-wider mb-1">会话已开启</p>
+            <p className="text-xs text-gray-300">
+              试着和 {characterName || '角色'} 打个招呼
+            </p>
+            <div className="w-16 h-[1px] bg-wood/20 mx-auto mt-6" />
           </div>
         )}
 
-        {messages.map((msg) => (
+        {messages.map((msg, idx) => (
           <div
             key={msg.message_id}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-ink-spread`}
+            style={{ animationDelay: `${idx * 0.05}s` }}
           >
             {msg.role === 'assistant' && (
-              <div className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center text-xs mr-2 shrink-0 mt-1">
-                {characterName ? characterName[0] : '?'}
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-stone-100 to-stone-200 flex items-center justify-center text-xs mr-2.5 shrink-0 mt-1 border border-stone-200">
+                <span className="text-wood/70 font-serif">{characterName ? characterName[0] : '?'}</span>
               </div>
             )}
-            <div
-              className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-                msg.role === 'user'
-                  ? 'bg-wood text-white rounded-br-md'
-                  : 'bg-white text-ink border border-stone-200 rounded-bl-md'
-              }`}
-            >
-              {msg.content}
+
+            <div className={`max-w-[78%] ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col`}>
+              <div
+                className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                  msg.role === 'user'
+                    ? 'bg-wood text-white rounded-br-md'
+                    : 'bg-white text-ink rounded-bl-md ink-border'
+                }`}
+              >
+                {msg.content}
+              </div>
+              <span className="text-[10px] text-gray-300 mt-1 px-1">
+                {formatTime(msg.created_at)}
+              </span>
             </div>
           </div>
         ))}
 
         {sending && (
-          <div className="flex justify-start">
-            <div className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center text-xs mr-2 shrink-0">
-              {characterName ? characterName[0] : '?'}
+          <div className="flex justify-start animate-fade-in-up">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-stone-100 to-stone-200 flex items-center justify-center text-xs mr-2.5 shrink-0 mt-1 border border-stone-200">
+              <span className="text-wood/70 font-serif">{characterName ? characterName[0] : '?'}</span>
             </div>
-            <div className="bg-white border border-stone-200 rounded-2xl rounded-bl-md px-4 py-2.5 text-sm text-gray-400">
-              <span className="inline-block animate-pulse">……</span>
+            <div className="bg-white border border-stone-200 rounded-2xl rounded-bl-md px-4 py-2.5 text-sm text-gray-400 shadow-sm">
+              <span className="inline-flex gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-wood/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-wood/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-wood/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+              </span>
             </div>
           </div>
         )}
+
+        {/* 底部留白 */}
+        <div className="h-2" />
       </div>
 
       {/* 输入框 */}
-      <div className="shrink-0 px-3 py-3 bg-white border-t border-stone-200 safe-area-pb">
-        <div className="flex gap-2 items-end">
+      <div className="shrink-0 bg-white/95 backdrop-blur border-t border-wood/10 px-4 py-3">
+        <div className="max-w-xl mx-auto flex gap-2 items-end">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             rows={1}
             placeholder={`对 ${characterName || '角色'} 说些什么……`}
-            className="flex-1 min-h-[40px] max-h-[120px] px-3 py-2 bg-stone-50 rounded-xl text-sm resize-none outline-none focus:ring-1 focus:ring-wood/30"
+            className="flex-1 min-h-[44px] max-h-[120px] px-4 py-2.5 bg-stone-50 rounded-xl text-sm resize-none outline-none focus:ring-1 focus:ring-wood/20 focus:bg-white transition-all border border-transparent focus:border-wood/15"
             style={{ height: 'auto' }}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || sending}
-            className="shrink-0 px-4 py-2 bg-wood text-white text-sm rounded-xl disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-transform"
+            className="shrink-0 w-11 h-11 bg-wood text-white rounded-xl disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all flex items-center justify-center shadow-sm hover:shadow-md"
           >
-            发送
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
           </button>
         </div>
+        <p className="text-center text-[10px] text-gray-300 mt-2 tracking-wider">
+          基于《明舟北渡》剧本角色 · 通义千问驱动
+        </p>
       </div>
     </div>
   )
