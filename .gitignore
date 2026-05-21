@@ -48,3 +48,9 @@ coverage
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Claude workflow
+.spec-workflow/
+
+# Vite cache
+.vite/
